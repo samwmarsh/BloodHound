@@ -1,17 +1,17 @@
 // Copyright 2023 Specter Ops, Inc.
-// 
+//
 // Licensed under the Apache License, Version 2.0
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-// 
+//
 // SPDX-License-Identifier: Apache-2.0
 
 package model
@@ -283,7 +283,7 @@ type SinglePartQuery struct {
 	errorContext
 
 	ReadingClauses  []*ReadingClause
-	UpdatingClauses []*UpdatingClause
+	UpdatingClauses []Expression
 	Return          *Return
 }
 
@@ -456,7 +456,7 @@ func (s *Remove) copy() *Remove {
 }
 
 type RemoveItem struct {
-	KindMatcher *KindMatcher
+	KindMatcher Expression
 	Property    *PropertyLookup
 }
 
@@ -652,6 +652,10 @@ func NewLiteral(value any, null bool) *Literal {
 		Value: value,
 		Null:  null,
 	}
+}
+
+func NewStringLiteral(value string) *Literal {
+	return NewLiteral("'"+value+"'", false)
 }
 
 func (s *Literal) copy() *Literal {
@@ -973,7 +977,7 @@ func (s *Variable) copy() *Variable {
 
 type ProjectionItem struct {
 	Expression Expression
-	Binding    *Variable
+	Binding    Expression
 }
 
 func NewProjectionItem() *ProjectionItem {
@@ -1083,7 +1087,7 @@ func (s *Properties) copy() *Properties {
 
 // NodePattern
 type NodePattern struct {
-	Binding    string
+	Binding    Expression
 	Kinds      graph.Kinds
 	Properties Expression
 }
@@ -1111,7 +1115,7 @@ func (s *NodePattern) AddKind(kind graph.Kind) {
 
 // RelationshipPattern
 type RelationshipPattern struct {
-	Binding    string
+	Binding    Expression
 	Kinds      graph.Kinds
 	Direction  graph.Direction
 	Range      *PatternRange
@@ -1194,7 +1198,7 @@ type Projection struct {
 	Order    *Order
 	Skip     *Skip
 	Limit    *Limit
-	Items    []*ProjectionItem
+	Items    []Expression
 }
 
 func NewProjection(distinct bool) *Projection {
@@ -1237,7 +1241,7 @@ func (s *Return) copy() *Return {
 }
 
 type PatternPart struct {
-	Binding                 string
+	Binding                 Expression
 	ShortestPathPattern     bool
 	AllShortestPathsPattern bool
 	PatternElements         []*PatternElement
@@ -1309,5 +1313,29 @@ func (s *Skip) copy() *Skip {
 
 	return &Skip{
 		Value: Copy(s.Value),
+	}
+}
+
+type PatternPredicate struct {
+	PatternElements []*PatternElement
+}
+
+func NewPatternPredicate() *PatternPredicate {
+	return &PatternPredicate{}
+}
+
+func (s *PatternPredicate) AddElement(element Expression) {
+	s.PatternElements = append(s.PatternElements, &PatternElement{
+		Element: element,
+	})
+}
+
+func (s *PatternPredicate) copy() *PatternPredicate {
+	if s == nil {
+		return nil
+	}
+
+	return &PatternPredicate{
+		PatternElements: Copy(s.PatternElements),
 	}
 }

@@ -1,17 +1,17 @@
 // Copyright 2023 Specter Ops, Inc.
-// 
+//
 // Licensed under the Apache License, Version 2.0
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-// 
+//
 // SPDX-License-Identifier: Apache-2.0
 
 package migrations
@@ -19,12 +19,12 @@ package migrations
 import (
 	"context"
 	"fmt"
-
-	"github.com/specterops/bloodhound/src/version"
 	"github.com/specterops/bloodhound/dawgs/graph"
 	"github.com/specterops/bloodhound/dawgs/query"
+	"github.com/specterops/bloodhound/graphschema"
 	"github.com/specterops/bloodhound/graphschema/common"
 	"github.com/specterops/bloodhound/log"
+	"github.com/specterops/bloodhound/src/version"
 )
 
 type Migration struct {
@@ -96,8 +96,10 @@ func (s *GraphMigrator) getMigrationData() (version.Version, error) {
 		node             *graph.Node
 		currentMigration version.Version
 	)
+
 	if err := s.db.ReadTransaction(context.Background(), func(tx graph.Transaction) error {
 		var err error
+
 		if node, err = tx.Nodes().Filterf(func() graph.Criteria {
 			return query.Kind(query.Node(), common.MigrationData)
 		}).First(); err != nil {
@@ -140,7 +142,7 @@ func (s *GraphMigrator) executeMigrations(target version.Version) error {
 }
 
 func (s *GraphMigrator) executeStepwiseMigrations() error {
-	if err := s.db.AssertSchema(context.Background(), CurrentSchema()); err != nil {
+	if err := s.db.AssertSchema(context.Background(), schema.CurrentSchema()); err != nil {
 		return fmt.Errorf("error asserting current schema: %w", err)
 	}
 

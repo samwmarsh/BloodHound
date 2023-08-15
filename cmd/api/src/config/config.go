@@ -281,9 +281,9 @@ func GetConfiguration(path string) (Configuration, error) {
 
 func (s Configuration) SaveCollectorManifests() (CollectorManifests, error) {
 	if azureHoundManifest, err := generateCollectorManifest(filepath.Join(s.CollectorsDirectory(), "azurehound")); err != nil {
-		return CollectorManifests{}, fmt.Errorf("error generating AzureHound manifest file: %w", err)
+		return CollectorManifests{}, nil //fmt.Errorf("error generating AzureHound manifest file: %w", err)
 	} else if sharpHoundManifest, err := generateCollectorManifest(filepath.Join(s.CollectorsDirectory(), "sharphound")); err != nil {
-		return CollectorManifests{}, fmt.Errorf("error generating SharpHound manifest file: %w", err)
+		return CollectorManifests{}, nil //fmt.Errorf("error generating SharpHound manifest file: %w", err)
 	} else {
 		return CollectorManifests{
 			"azurehound": azureHoundManifest,

@@ -22,6 +22,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/specterops/bloodhound/cypher/gen/cypher"
+	"github.com/specterops/bloodhound/cypher/gen/pgsql"
+	"github.com/specterops/bloodhound/dawgs/drivers/pg"
 	"net/http"
 	"net/url"
 	"sort"
@@ -147,8 +150,8 @@ type GraphQuery struct {
 	Cache                 cache.Cache
 	SlowQueryThreshold    int64 // Threshold in milliseconds
 	DisableCypherQC       bool
-	cypherEmitter         frontend.Emitter
-	strippedCypherEmitter frontend.Emitter
+	cypherEmitter         cypher.Emitter
+	strippedCypherEmitter cypher.Emitter
 }
 
 func NewGraphQuery(graphDB graph.Database, cache cache.Cache, slowQueryThreshold int64, disableCypherQC bool) *GraphQuery {
@@ -157,8 +160,8 @@ func NewGraphQuery(graphDB graph.Database, cache cache.Cache, slowQueryThreshold
 		Cache:                 cache,
 		SlowQueryThreshold:    slowQueryThreshold,
 		DisableCypherQC:       disableCypherQC,
-		cypherEmitter:         frontend.NewCypherEmitter(false),
-		strippedCypherEmitter: frontend.NewCypherEmitter(true),
+		cypherEmitter:         cypher.NewCypherEmitter(false),
+		strippedCypherEmitter: cypher.NewCypherEmitter(true),
 	}
 }
 
@@ -359,9 +362,9 @@ func (s *GraphQuery) SearchNodesByName(ctx context.Context, nodeKinds graph.Kind
 }
 
 type preparedQuery struct {
-	cypher         string
-	strippedCypher string
-	complexity     *analyzer.ComplexityMeasure
+	query         string
+	strippedQuery string
+	complexity    *analyzer.ComplexityMeasure
 }
 
 func (s *GraphQuery) prepareGraphQuery(rawCypher string, disableCypherQC bool) (preparedQuery, error) {
@@ -377,13 +380,25 @@ func (s *GraphQuery) prepareGraphQuery(rawCypher string, disableCypherQC bool) (
 		return graphQuery, newQueryError(err)
 	} else if !disableCypherQC && complexityMeasure.Weight > MaxQueryComplexityWeightAllowed {
 		return graphQuery, newQueryError(ErrCypherQueryToComplex)
+	} else if pgDB, isPG := s.Graph.(*pg.Driver); isPG {
+		if _, err := pgsql.Translate(queryModel, pgDB.KindMapper()); err != nil {
+			return graphQuery, newQueryError(err)
+		}
+
+		if err := pgsql.NewEmitter(false, pgDB.KindMapper()).Write(queryModel, buffer); err != nil {
+			return graphQuery, err
+		} else {
+			graphQuery.query = buffer.String()
+		}
+
+		return graphQuery, nil
 	} else {
 		graphQuery.complexity = complexityMeasure
 
 		if err := s.cypherEmitter.Write(queryModel, buffer); err != nil {
 			return graphQuery, newQueryError(err)
 		} else {
-			graphQuery.cypher = buffer.String()
+			graphQuery.query = buffer.String()
 		}
 
 		buffer.Reset()
@@ -391,7 +406,7 @@ func (s *GraphQuery) prepareGraphQuery(rawCypher string, disableCypherQC bool) (
 		if err := s.strippedCypherEmitter.Write(queryModel, buffer); err != nil {
 			return graphQuery, newQueryError(err)
 		} else {
-			graphQuery.strippedCypher = buffer.String()
+			graphQuery.strippedQuery = buffer.String()
 		}
 	}
 
@@ -408,11 +423,11 @@ func (s *GraphQuery) RawCypherSearch(ctx context.Context, rawCypher string, incl
 		return graphResponse, err
 	} else {
 		logEvent := log.WithLevel(log.LevelInfo)
-		logEvent.Str("query", preparedQuery.strippedCypher)
+		logEvent.Str("query", preparedQuery.strippedQuery)
 		logEvent.Msg("Executing user cypher query")
 
 		return graphResponse, s.Graph.ReadTransaction(ctx, func(tx graph.Transaction) error {
-			if pathSet, err := ops.FetchPathSetByQuery(tx, preparedQuery.cypher); err != nil {
+			if pathSet, err := ops.FetchPathSetByQuery(tx, preparedQuery.query); err != nil {
 				return err
 			} else {
 				graphResponse.AddPathSet(pathSet, includeProperties)
@@ -425,15 +440,15 @@ func (s *GraphQuery) RawCypherSearch(ctx context.Context, rawCypher string, incl
 
 			log.Debugf("Available timeout for query is set to: %.2f seconds", availableRuntime.Seconds())
 
-			if !s.DisableCypherQC && !bhCtxInst.Timeout.UserSet {
-				// The weight of the query is divided by 5 to get a runtime reduction factor. This means that query weights
-				// of 5 or less will get the full runtime duration.
-				if reductionFactor := time.Duration(preparedQuery.complexity.Weight) / 5; reductionFactor > 0 {
-					availableRuntime /= reductionFactor
-
-					log.Infof("Cypher query cost is: %.2f. Reduction factor for query is: %d. Available timeout for query is now set to: %.2f seconds", preparedQuery.complexity.Weight, reductionFactor, availableRuntime.Seconds())
-				}
-			}
+			//if !s.DisableCypherQC && !bhCtxInst.Timeout.UserSet {
+			//	// The weight of the query is divided by 5 to get a runtime reduction factor. This means that query weights
+			//	// of 5 or less will get the full runtime duration.
+			//	if reductionFactor := time.Duration(preparedQuery.complexity.Weight) / 5; reductionFactor > 0 {
+			//		availableRuntime /= reductionFactor
+			//
+			//		log.Infof("Cypher query cost is: %.2f. Reduction factor for query is: %d. Available timeout for query is now set to: %.2f seconds", preparedQuery.complexity.Weight, reductionFactor, availableRuntime.Seconds())
+			//	}
+			//}
 
 			// Set a sane timeout for this DB interaction
 			config.Timeout = availableRuntime

@@ -41,27 +41,28 @@ func FetchNodeProperties(tx graph.Transaction, nodes graph.NodeSet, propertyName
 		var nodeID graph.ID
 
 		for results.Next() {
-			var (
-				mapper         = results.Values()
-				nodeProperties = map[string]any{}
-			)
-
-			// Map the node ID first
-			if err := mapper.Map(&nodeID); err != nil {
+			if values, err := results.Values(); err != nil {
 				return err
-			}
+			} else {
+				nodeProperties := map[string]any{}
 
-			// Map requested properties next by matching the name index
-			for idx := 0; idx < len(propertyNames); idx++ {
-				if next, err := mapper.Next(); err != nil {
+				// Map the node ID first
+				if err := values.Map(&nodeID); err != nil {
 					return err
-				} else {
-					nodeProperties[propertyNames[idx]] = next
 				}
-			}
 
-			// Update the node in the node set
-			nodes[nodeID].Properties = graph.AsProperties(nodeProperties)
+				// Map requested properties next by matching the name index
+				for idx := 0; idx < len(propertyNames); idx++ {
+					if next, err := values.Next(); err != nil {
+						return err
+					} else {
+						nodeProperties[propertyNames[idx]] = next
+					}
+				}
+
+				// Update the node in the node set
+				nodes[nodeID].Properties = graph.AsProperties(nodeProperties)
+			}
 		}
 
 		return nil
@@ -158,7 +159,9 @@ func FetchPathSetByQuery(tx graph.Transaction, query string) (graph.PathSet, err
 				path         graph.Path
 			)
 
-			if mapped, err := result.Values().MapOptions(&relationship, &node, &path); err != nil {
+			if values, err := result.Values(); err != nil {
+				return pathSet, err
+			} else if mapped, err := values.MapOptions(&relationship, &node, &path); err != nil {
 				return pathSet, err
 			} else {
 				switch typedMapped := mapped.(type) {

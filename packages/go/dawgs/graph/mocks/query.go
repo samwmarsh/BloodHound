@@ -172,11 +172,12 @@ func (mr *MockScannerMockRecorder) Scan(targets ...interface{}) *gomock.Call {
 }
 
 // Values mocks base method.
-func (m *MockScanner) Values() graph.ValueMapper {
+func (m *MockScanner) Values() (graph.ValueMapper, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Values")
 	ret0, _ := ret[0].(graph.ValueMapper)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Values indicates an expected call of Values.
@@ -267,11 +268,12 @@ func (mr *MockResultMockRecorder) Scan(targets ...interface{}) *gomock.Call {
 }
 
 // Values mocks base method.
-func (m *MockResult) Values() graph.ValueMapper {
+func (m *MockResult) Values() (graph.ValueMapper, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Values")
 	ret0, _ := ret[0].(graph.ValueMapper)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Values indicates an expected call of Values.

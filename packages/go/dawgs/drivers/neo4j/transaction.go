@@ -55,6 +55,10 @@ type neo4jTransaction struct {
 	traversalMemoryLimit size.Size
 }
 
+func (s *neo4jTransaction) WithGraph(graphSchema graph.Graph) graph.Transaction {
+	return s
+}
+
 func (s *neo4jTransaction) updateRelationshipsBy(updates ...graph.RelationshipUpdate) error {
 	var (
 		numUpdates                       = len(updates)

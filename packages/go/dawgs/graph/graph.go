@@ -214,8 +214,12 @@ func (s RelationshipUpdate) EndIdentityPropertiesMap() map[string]any {
 }
 
 type Batch interface {
+	// WithGraph scopes the transaction to a specific graph. If the driver for the transaction does not support
+	// multiple  graphs the resulting transaction will target the default graph instead and this call becomes a no-op.
+	WithGraph(graphSchema Graph) Batch
+
 	// CreateNode creates a new Node in the database and returns the creation as a NodeResult.
-	CreateNode(properties *Properties, kinds ...Kind) error
+	CreateNode(node *Node) error
 
 	// DeleteNode deletes a node by the given ID.
 	DeleteNode(id ID) error
@@ -231,12 +235,12 @@ type Batch interface {
 	// exist, created.
 	UpdateNodeBy(update NodeUpdate) error
 
-	// CreateRelationship creates a new Relationship from the start Node to the end Node with the given Kind and
-	// Properties and returns the creation as a RelationshipResult.
-	CreateRelationship(startNode, endNode *Node, kind Kind, properties *Properties) error
+	CreateRelationship(relationship *Relationship) error
 
 	// CreateRelationshipByIDs creates a new Relationship from the start Node to the end Node with the given Kind and
 	// Properties and returns the creation as a RelationshipResult.
+	//
+	// Deprecated: Use CreateRelationship
 	CreateRelationshipByIDs(startNodeID, endNodeID ID, kind Kind, properties *Properties) error
 
 	// DeleteRelationship deletes a relationship by the given ID.
@@ -254,6 +258,10 @@ type Batch interface {
 // Transaction is an interface that contains all operations that may be executed against a DAWGS driver. DAWGS drivers are
 // expected to support all Transaction operations in-transaction.
 type Transaction interface {
+	// WithGraph scopes the transaction to a specific graph. If the driver for the transaction does not support
+	// multiple  graphs the resulting transaction will target the default graph instead and this call becomes a no-op.
+	WithGraph(graphSchema Graph) Transaction
+
 	// CreateNode creates a new Node in the database and returns the creation as a NodeResult.
 	CreateNode(properties *Properties, kinds ...Kind) (*Node, error)
 
@@ -261,16 +269,8 @@ type Transaction interface {
 	// entries in the database. Use CreateNode first to create a new Node.
 	UpdateNode(node *Node) error
 
-	// UpdateNodeBy updates a Node by attempting to write a valid merge statement for the criteria in the given
-	// NodeUpdate struct.
-	UpdateNodeBy(update NodeUpdate) error
-
 	// Nodes creates a new NodeQuery and returns it.
 	Nodes() NodeQuery
-
-	// CreateRelationship creates a new Relationship from the start Node to the end Node with the given Kind and
-	// Properties and returns the creation as a RelationshipResult.
-	CreateRelationship(startNode, endNode *Node, kind Kind, properties *Properties) (*Relationship, error)
 
 	// CreateRelationshipByIDs creates a new Relationship from the start Node to the end Node with the given Kind and
 	// Properties and returns the creation as a RelationshipResult.
@@ -280,10 +280,6 @@ type Transaction interface {
 	// will not create missing Relationship entries in the database. Use CreateRelationship first to create a new
 	// Relationship.
 	UpdateRelationship(relationship *Relationship) error
-
-	// UpdateRelationshipBy updates a Relationship by attempting to write a valid merge statement for the criteria in
-	// the given RelationshipUpdate struct.
-	UpdateRelationshipBy(update RelationshipUpdate) error
 
 	// Relationships creates a new RelationshipQuery and returns it.
 	Relationships() RelationshipQuery
@@ -308,7 +304,8 @@ type BatchDelegate func(batch Batch) error
 
 // TransactionConfig is a generic configuration that may apply to all supported databases.
 type TransactionConfig struct {
-	Timeout time.Duration
+	Timeout      time.Duration
+	DriverConfig any
 }
 
 // TransactionOption is a function that represents a configuration setting for the underlying database transaction.
@@ -336,16 +333,13 @@ type Database interface {
 	// transaction.
 	BatchOperation(ctx context.Context, batchDelegate BatchDelegate) error
 
-	// AssertSchema will apply the given schema model to the underlying database.
-	AssertSchema(ctx context.Context, schema *Schema) error
-
-	// FetchSchema will pull the schema of the underlying database and marshal it into the DAWGS schema model.
-	FetchSchema(ctx context.Context) (*Schema, error)
+	// AssertSchema will apply the given schema to the underlying database.
+	AssertSchema(ctx context.Context, dbSchema Schema) error
 
 	// Run allows a user to pass statements directly to the database. Since results may rely on a transactional context
 	// only an error is returned from this function
 	Run(ctx context.Context, query string, parameters map[string]any) error
 
 	// Close closes the database context and releases any pooled resources held by the instance.
-	Close() error
+	Close(ctx context.Context) error
 }

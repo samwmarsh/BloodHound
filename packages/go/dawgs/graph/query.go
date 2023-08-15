@@ -27,7 +27,7 @@ type ValueMapper interface {
 
 type Scanner interface {
 	Next() bool
-	Values() ValueMapper
+	Values() (ValueMapper, error)
 	Scan(targets ...any) error
 }
 

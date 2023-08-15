@@ -86,7 +86,7 @@ func (s Traversal) BreadthFirst(ctx context.Context, plan Plan) error {
 		go func(workerID int) {
 			defer workerWG.Done()
 
-			if err := s.db.ReadTransaction(traversalCtx, func(tx graph.Transaction) error {
+			if err := s.db.ReadTransaction(ctx, func(tx graph.Transaction) error {
 				for {
 					if nextDescent, ok := channels.Receive(traversalCtx, segmentReaderC); !ok {
 						return nil
@@ -238,7 +238,7 @@ func UniquePathSegmentFilter(delegate SegmentFilter) SegmentFilter {
 			return false
 		}
 
-		// Return if we've seen this edge before
+		// Select if we've seen this edge before
 		if !traversalBitmap.CheckedAdd(next.Edge.ID.Uint32()) {
 			return false
 		}
