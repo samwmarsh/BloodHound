@@ -50,7 +50,7 @@ func Create() (cmd, error) {
 		verboseBool, err = strconv.ParseBool(verboseEnv)
 	)
 
-	if err != nil {
+	if verboseEnv != "" && err != nil {
 		return command, fmt.Errorf("failed to parse environment variable (%s=%s) as a boolean: %w", "verbose", verboseEnv, err)
 	}
 

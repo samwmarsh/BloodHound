@@ -9,6 +9,7 @@ import (
 
 	"github.com/specterops/bloodhound/packages/go/stbernard/command/envdump"
 	"github.com/specterops/bloodhound/packages/go/stbernard/command/modsync"
+	"github.com/specterops/bloodhound/packages/go/stbernard/command/workgen"
 )
 
 // Commander is an interface for commands, allowing commands to implement the minimum
@@ -22,9 +23,9 @@ type Commander interface {
 }
 
 var (
-	ErrNoCmd           = errors.New("no command specified")
-	ErrInvalidCmd      = errors.New("invalid command specified")
-	ErrFailedCreateCmd = errors.New("failed to create command")
+	ErrNoCmd      = errors.New("no command specified")
+	ErrInvalidCmd = errors.New("invalid command specified")
+	ErrCreateCmd  = errors.New("failed to create command")
 )
 
 // ParseCLI parses for a subcommand as the first argument to the calling binary,
@@ -46,14 +47,21 @@ func ParseCLI() (Commander, error) {
 	switch os.Args[1] {
 	case ModSync.String():
 		if cmd, err := modsync.Create(); err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrFailedCreateCmd, err)
+			return nil, fmt.Errorf("%w: %w", ErrCreateCmd, err)
 		} else {
 			return cmd, nil
 		}
 
 	case EnvDump.String():
 		if cmd, err := envdump.Create(); err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrFailedCreateCmd, err)
+			return nil, fmt.Errorf("%w: %w", ErrCreateCmd, err)
+		} else {
+			return cmd, nil
+		}
+
+	case WorkGen.String():
+		if cmd, err := workgen.Create(); err != nil {
+			return nil, fmt.Errorf("%w, %w", ErrCreateCmd, err)
 		} else {
 			return cmd, nil
 		}

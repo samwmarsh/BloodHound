@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 
 	"golang.org/x/mod/modfile"
 )
@@ -75,8 +76,7 @@ func ParseModulesAbsPaths(cwd string) ([]string, error) {
 	}
 }
 
-// DownloadModules runs go mod download for all module paths passed with a given
-// set of environment variables
+// DownloadModules runs go mod download for all module paths passed
 func DownloadModules(modPaths []string) error {
 	var errs = make([]error, 0)
 
@@ -84,7 +84,7 @@ func DownloadModules(modPaths []string) error {
 		cmd := exec.Command("go", "mod", "download")
 		cmd.Dir = modPath
 		if err := cmd.Run(); err != nil {
-			errs = append(errs, fmt.Errorf("failure when running command: %w", err))
+			errs = append(errs, fmt.Errorf("failure when running go mod download in %s: %w", modPath, err))
 		}
 	}
 
@@ -95,8 +95,35 @@ func DownloadModules(modPaths []string) error {
 	}
 }
 
-// SyncWorkspace runs go work sync in the given directory with a given set of environment
-// variables
+// WorkspaceGenerate runs go generate ./... for all module paths passed
+func WorkspaceGenerate(modPaths []string) error {
+	var (
+		errs = make([]error, 0)
+		wg   sync.WaitGroup
+	)
+
+	for _, modPath := range modPaths {
+		wg.Add(1)
+		go func(modPath string) {
+			defer wg.Done()
+			cmd := exec.Command("go", "generate", "./...")
+			cmd.Dir = modPath
+			if err := cmd.Run(); err != nil {
+				errs = append(errs, fmt.Errorf("failure when running go generate command in %s: %w", modPath, err))
+			}
+		}(modPath)
+	}
+
+	wg.Wait()
+
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to generate code in all modules: %w", errors.Join(errs...))
+	} else {
+		return nil
+	}
+}
+
+// SyncWorkspace runs go work sync in the given directory
 func SyncWorkspace(cwd string) error {
 	cmd := exec.Command("go", "work", "sync")
 	cmd.Dir = cwd
