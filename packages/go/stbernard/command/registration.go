@@ -5,17 +5,17 @@ import (
 	"github.com/specterops/bloodhound/packages/go/stbernard/command/modsync"
 )
 
-// Command enum represents our subcommands
-type Command int
+// subCmd enum represents our subcommands
+type subCmd int
 
 const (
-	InvalidCommand Command = iota - 1
+	InvalidSubCmd subCmd = iota - 1
 	ModSync
 	EnvDump
 )
 
 // String implements Stringer for the Command enum
-func (s Command) String() string {
+func (s subCmd) String() string {
 	switch s {
 	case ModSync:
 		return modsync.Name
@@ -27,8 +27,8 @@ func (s Command) String() string {
 }
 
 // Commands returns our valid set of Command options
-func Commands() []Command {
-	return []Command{ModSync, EnvDump}
+func Commands() []subCmd {
+	return []subCmd{ModSync, EnvDump}
 }
 
 // Commands usage returns a slice of Command usage statements indexed by their enum

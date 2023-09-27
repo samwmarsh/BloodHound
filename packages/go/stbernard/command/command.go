@@ -21,9 +21,11 @@ type Commander interface {
 	Run() error
 }
 
-var NoCmdErr = errors.New("no command specified")
-var InvalidCmdErr = errors.New("invalid command specified")
-var FailedCreateCmdErr = errors.New("failed to create command")
+var (
+	ErrNoCmd           = errors.New("no command specified")
+	ErrInvalidCmd      = errors.New("invalid command specified")
+	ErrFailedCreateCmd = errors.New("failed to create command")
+)
 
 // ParseCLI parses for a subcommand as the first argument to the calling binary,
 // and initializes the command (if it exists). It also provides the default usage
@@ -38,22 +40,20 @@ func ParseCLI() (Commander, error) {
 	// Default usage if no arguments provided
 	if len(os.Args) < 2 {
 		flag.Usage()
-		return nil, NoCmdErr
+		return nil, ErrNoCmd
 	}
 
 	switch os.Args[1] {
 	case ModSync.String():
-		config := modsync.Config{Environment: environment()}
-		if cmd, err := modsync.Create(config); err != nil {
-			return nil, fmt.Errorf("%w: %w", FailedCreateCmdErr, err)
+		if cmd, err := modsync.Create(); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrFailedCreateCmd, err)
 		} else {
 			return cmd, nil
 		}
 
 	case EnvDump.String():
-		config := envdump.Config{Environment: environment()}
-		if cmd, err := envdump.Create(config); err != nil {
-			return nil, fmt.Errorf("%w: %w", FailedCreateCmdErr, err)
+		if cmd, err := envdump.Create(); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrFailedCreateCmd, err)
 		} else {
 			return cmd, nil
 		}
@@ -61,7 +61,7 @@ func ParseCLI() (Commander, error) {
 	default:
 		flag.Parse()
 		flag.Usage()
-		return nil, InvalidCmdErr
+		return nil, ErrInvalidCmd
 	}
 }
 
@@ -79,28 +79,8 @@ func usage() {
 	}
 
 	for cmd, usage := range CommandsUsage() {
-		cmdStr := Command(cmd).String()
+		cmdStr := subCmd(cmd).String()
 		padding := strings.Repeat(" ", longestCmdLen-len(cmdStr))
 		fmt.Fprintf(w, "  %s%s    %s\n", cmdStr, padding, usage)
 	}
-}
-
-// environment is used to add default env vars as needed to the existing environment variables
-func environment() []string {
-	var envMap = make(map[string]string)
-
-	for _, env := range os.Environ() {
-		envTuple := strings.SplitN(env, "=", 2)
-		envMap[envTuple[0]] = envTuple[1]
-	}
-
-	// Make any changes here
-	envMap["FOO"] = "foo" // For illustrative purposes only
-
-	var envSlice = make([]string, 0, len(envMap))
-	for key, val := range envMap {
-		envSlice = append(envSlice, strings.Join([]string{key, val}, "="))
-	}
-
-	return envSlice
 }

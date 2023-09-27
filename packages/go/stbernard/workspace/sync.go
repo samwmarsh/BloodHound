@@ -77,12 +77,11 @@ func ParseModulesAbsPaths(cwd string) ([]string, error) {
 
 // DownloadModules runs go mod download for all module paths passed with a given
 // set of environment variables
-func DownloadModules(modPaths []string, env []string) error {
+func DownloadModules(modPaths []string) error {
 	var errs = make([]error, 0)
 
 	for _, modPath := range modPaths {
 		cmd := exec.Command("go", "mod", "download")
-		cmd.Env = env
 		cmd.Dir = modPath
 		if err := cmd.Run(); err != nil {
 			errs = append(errs, fmt.Errorf("failure when running command: %w", err))
@@ -98,9 +97,8 @@ func DownloadModules(modPaths []string, env []string) error {
 
 // SyncWorkspace runs go work sync in the given directory with a given set of environment
 // variables
-func SyncWorkspace(cwd string, env []string) error {
+func SyncWorkspace(cwd string) error {
 	cmd := exec.Command("go", "work", "sync")
-	cmd.Env = env
 	cmd.Dir = cwd
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed running go work sync: %w", err)
