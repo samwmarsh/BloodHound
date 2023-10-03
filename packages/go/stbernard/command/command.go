@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/specterops/bloodhound/packages/go/stbernard/command/buildcmd"
 	"github.com/specterops/bloodhound/packages/go/stbernard/command/envdump"
 	"github.com/specterops/bloodhound/packages/go/stbernard/command/modsync"
 	"github.com/specterops/bloodhound/packages/go/stbernard/command/workgen"
@@ -62,6 +63,13 @@ func ParseCLI() (Commander, error) {
 	case WorkGen.String():
 		if cmd, err := workgen.Create(); err != nil {
 			return nil, fmt.Errorf("%w, %w", ErrCreateCmd, err)
+		} else {
+			return cmd, nil
+		}
+
+	case Build.String():
+		if cmd, err := buildcmd.Create(); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrCreateCmd, err)
 		} else {
 			return cmd, nil
 		}

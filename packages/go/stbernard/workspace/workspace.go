@@ -1,16 +1,24 @@
 package workspace
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"golang.org/x/mod/modfile"
 )
+
+type Package struct {
+	Name   string `json:"name"`
+	Dir    string `json:"dir"`
+	Import string `json:"importpath"`
+}
 
 // FindRoot will attempt to crawl up the path until it finds a go.work file
 func FindRoot() (string, error) {
@@ -112,17 +120,6 @@ func WorkspaceGenerate(modPaths []string) error {
 	return errors.Join(errs...)
 }
 
-// moduleListPackages runs go list for the given module and returns the list of packages in that module
-func moduleListPackages(modPath string) ([]string, error) {
-	cmd := exec.Command("go", "list", "./...")
-	cmd.Dir = modPath
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return []string{}, fmt.Errorf("failed to list packages for module %s: %w", modPath, err)
-	} else {
-		return strings.Split(string(out), "\n"), nil
-	}
-}
-
 // SyncWorkspace runs go work sync in the given directory
 func SyncWorkspace(cwd string) error {
 	cmd := exec.Command("go", "work", "sync")
@@ -130,6 +127,67 @@ func SyncWorkspace(cwd string) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed running go work sync: %w", err)
 	} else {
+		return nil
+	}
+}
+
+// BuildMainPackages builds all main packages for a list of module paths
+func BuildMainPackages(modPaths []string) error {
+	for _, modPath := range modPaths {
+		if err := buildModuleMainPackages(modPath); err != nil {
+			return fmt.Errorf("failed to build main packages")
+		}
+	}
+
+	return nil
+}
+
+// moduleListPackages runs go list for the given module and returns the list of packages in that module
+func moduleListPackages(modPath string) ([]Package, error) {
+	var (
+		packages = make([]Package, 0)
+	)
+
+	cmd := exec.Command("go", "list", "-json", "./...")
+	cmd.Dir = modPath
+	if out, err := cmd.StdoutPipe(); err != nil {
+		return packages, fmt.Errorf("failed to create stdout pipe for module %s: %w", modPath, err)
+	} else if err := cmd.Start(); err != nil {
+		return packages, fmt.Errorf("failed to list packages for module %s: %w", modPath, err)
+	} else {
+		decoder := json.NewDecoder(out)
+		for {
+			var p Package
+			if err := decoder.Decode(&p); err == io.EOF {
+				break
+			} else if err != nil {
+				return packages, fmt.Errorf("failed to decode package in module %s: %w", modPath, err)
+			}
+			packages = append(packages, p)
+		}
+		cmd.Wait()
+		return packages, nil
+	}
+}
+
+// buildModuleMainPackages runs go build for all main packages in a given module
+func buildModuleMainPackages(modPath string) error {
+	if packages, err := moduleListPackages(modPath); err != nil {
+		return fmt.Errorf("failed to list module packages: %w", err)
+	} else {
+		for _, p := range packages {
+			if p.Name == "main" {
+				cmd := exec.Command("go", "build")
+				cmd.Dir = p.Dir
+				if err := cmd.Run(); err != nil {
+					return fmt.Errorf("failed running go build: %w", err)
+				} else {
+					slog.Info("Built package", "package", p.Import, "dir", p.Dir)
+					return nil
+				}
+			}
+		}
+
 		return nil
 	}
 }
@@ -157,10 +215,11 @@ func moduleGenerate(modPath string) error {
 	} else {
 		for _, pkg := range packages {
 			wg.Add(1)
-			go func(pkg string) {
+			go func(pkg Package) {
 				defer wg.Done()
-				cmd := exec.Command("go", "generate", pkg)
+				cmd := exec.Command("go", "generate", pkg.Dir)
 				cmd.Dir = modPath
+				slog.Info("Generating code for package", "package", pkg.Name, "path", pkg.Dir)
 				if err := cmd.Run(); err != nil {
 					errs = append(errs, fmt.Errorf("failed to generate code for package %s: %w", pkg, err))
 				}
