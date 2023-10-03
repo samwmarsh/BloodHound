@@ -20,7 +20,7 @@ func FindRoot() (string, error) {
 		var found bool
 
 		for !found {
-			found, err = WorkFileExists(cwd)
+			found, err = workFileExists(cwd)
 			if err != nil {
 				return cwd, fmt.Errorf("error while trying to find go.work file: %w", err)
 			}
@@ -40,17 +40,6 @@ func FindRoot() (string, error) {
 		}
 
 		return cwd, nil
-	}
-}
-
-// WorkFileExists checks if a go.work file exists in the given directory
-func WorkFileExists(cwd string) (bool, error) {
-	if _, err := os.Stat(filepath.Join(cwd, "go.work")); errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	} else if err != nil {
-		return false, fmt.Errorf("could not stat go.work file: %w", err)
-	} else {
-		return true, nil
 	}
 }
 
@@ -112,7 +101,7 @@ func WorkspaceGenerate(modPaths []string) error {
 		wg.Add(1)
 		go func(modPath string) {
 			defer wg.Done()
-			if err := ModuleGenerate(modPath); err != nil {
+			if err := moduleGenerate(modPath); err != nil {
 				errs = append(errs, fmt.Errorf("failure running code generation for module %s: %w", modPath, err))
 			}
 		}(modPath)
@@ -123,36 +112,8 @@ func WorkspaceGenerate(modPaths []string) error {
 	return errors.Join(errs...)
 }
 
-// ModuleGenerate runs go generate in each package of the given module
-func ModuleGenerate(modPath string) error {
-	var (
-		wg   sync.WaitGroup
-		errs = make([]error, 0)
-	)
-
-	if packages, err := ModuleListPackages(modPath); err != nil {
-		return fmt.Errorf("could not list packages for module %s: %w", modPath, err)
-	} else {
-		for _, pkg := range packages {
-			wg.Add(1)
-			go func(pkg string) {
-				defer wg.Done()
-				cmd := exec.Command("go", "generate", pkg)
-				cmd.Dir = modPath
-				if err := cmd.Run(); err != nil {
-					errs = append(errs, fmt.Errorf("failed to generate code for package %s: %w", pkg, err))
-				}
-			}(pkg)
-		}
-
-		wg.Wait()
-
-		return errors.Join(errs...)
-	}
-}
-
-// ModuleListPackages runs go list for the given module and returns the list of packages in that module
-func ModuleListPackages(modPath string) ([]string, error) {
+// moduleListPackages runs go list for the given module and returns the list of packages in that module
+func moduleListPackages(modPath string) ([]string, error) {
 	cmd := exec.Command("go", "list", "./...")
 	cmd.Dir = modPath
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -170,5 +131,44 @@ func SyncWorkspace(cwd string) error {
 		return fmt.Errorf("failed running go work sync: %w", err)
 	} else {
 		return nil
+	}
+}
+
+// workFileExists checks if a go.work file exists in the given directory
+func workFileExists(cwd string) (bool, error) {
+	if _, err := os.Stat(filepath.Join(cwd, "go.work")); errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("could not stat go.work file: %w", err)
+	} else {
+		return true, nil
+	}
+}
+
+// moduleGenerate runs go generate in each package of the given module
+func moduleGenerate(modPath string) error {
+	var (
+		wg   sync.WaitGroup
+		errs = make([]error, 0)
+	)
+
+	if packages, err := moduleListPackages(modPath); err != nil {
+		return fmt.Errorf("could not list packages for module %s: %w", modPath, err)
+	} else {
+		for _, pkg := range packages {
+			wg.Add(1)
+			go func(pkg string) {
+				defer wg.Done()
+				cmd := exec.Command("go", "generate", pkg)
+				cmd.Dir = modPath
+				if err := cmd.Run(); err != nil {
+					errs = append(errs, fmt.Errorf("failed to generate code for package %s: %w", pkg, err))
+				}
+			}(pkg)
+		}
+
+		wg.Wait()
+
+		return errors.Join(errs...)
 	}
 }
